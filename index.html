@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>하예라 연수 일정 - 관리자용</title>
-    <!-- Firebase SDK (실시간 데이터베이스 연동용) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -121,13 +121,20 @@
 
     <!-- 2. 취합 결과 화면 -->
     <div id="result-view" class="container">
-        <div class="schedule-controls" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div class="schedule-controls" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
             <div>
                 <h3 style="margin: 0; border: none; padding: 0;">팀원 전체 불가능 시간 취합 결과 (표)</h3>
                 <p style="font-size: 13px; color: #666; margin: 4px 0 0 0;">개인별 불가능한 인원 및 <b>다른 연습 일정이 확정된 인원</b>도 모두 합산되어 빨간색으로 표시됩니다.</p>
             </div>
             <button class="danger-btn" onclick="resetAllSubmissions()" style="padding: 10px 15px; font-size: 14px;">새로운 일정 취합 시작</button>
         </div>
+
+        <!-- 🚨 미제출자 명단 표시 영역 -->
+        <div id="unsubmittedList" style="margin-bottom: 15px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; font-size: 14px; color: #b45309; display: none;">
+            <span style="font-weight: bold;">🚨 아직 제출하지 않은 인원:</span> 
+            <span id="unsubmittedNames" style="color: #ea580c; font-weight: bold; margin-left: 5px;"></span>
+        </div>
+
         <div class="result-table-container" id="resultTableContainer"></div>
     </div>
 
@@ -277,6 +284,7 @@
                 renderStages();
                 updateStageDropdown();
                 updateAvailabilityStageDropdown();
+                renderResultMatrix(); // 곡 멤버 변동 시 미제출자 명단 갱신을 위해 호출
             });
 
             db.collection("schedules").onSnapshot((snapshot) => {
@@ -455,7 +463,6 @@
             document.querySelectorAll('#memberCheckboxesList input[type="checkbox"]').forEach(cb => cb.checked = isChecked);
         }
 
-        // 불가능 인원 사유 표시 문자열 심플화
         function updateMembersCheckbox() {
             const stageSelect = document.getElementById('schStage');
             const isPersonal = document.getElementById('isPersonalCheck').checked;
@@ -502,7 +509,6 @@
                     uRecord.slots.forEach(slot => {
                         if (slot.day === day && involvedSlots.includes(slot.time)) {
                             if (!unavailableMap[member]) unavailableMap[member] = new Set();
-                            // 요청사항 반영: "제출 불가 (...)" 빼고 사유 텍스트만!
                             unavailableMap[member].add(slot.reason); 
                         }
                     });
@@ -516,7 +522,6 @@
                             let slotTimeStr = `${h.toString().padStart(2,'0')}:00 - ${(h+1).toString().padStart(2,'0')}:00`;
                             if(involvedSlots.includes(slotTimeStr)) {
                                 if (!unavailableMap[member]) unavailableMap[member] = new Set();
-                                // 요청사항 반영: 다른 일정 겹칠때도 군더더기 없이 곡 이름만!
                                 unavailableMap[member].add(sch.stageName);
                             }
                         }
@@ -539,7 +544,6 @@
                 `;
                 for (let name in unavailableMap) {
                     let reasons = [...unavailableMap[name]].join(', ');
-                    // 출력 형식: 이름: 사유 (예 - 신혜원: 학생회)
                     reasonHtml += `<li><b>${name}</b>: ${reasons}</li>`;
                 }
                 reasonHtml += `</ul></div>`;
@@ -624,6 +628,41 @@
         }
 
         function renderResultMatrix() {
+            // 🚨 미제출자 계산 및 표시 영역 업데이트
+            let allMembers = new Set();
+            stages.forEach(stage => stage.members.forEach(m => allMembers.add(m)));
+            
+            let submittedMembers = new Set(unavailabilities.map(u => u.name));
+            let unsubmitted = [...allMembers].filter(m => !submittedMembers.has(m)).sort();
+            
+            const unsubBox = document.getElementById('unsubmittedList');
+            const unsubNames = document.getElementById('unsubmittedNames');
+            
+            if (allMembers.size === 0) {
+                // 곡이 하나도 안 만들어진 상태면 박스 숨김
+                unsubBox.style.display = 'none';
+            } else if (unsubmitted.length > 0) {
+                // 미제출자가 있는 경우 (노란색 박스)
+                unsubBox.style.display = 'block';
+                unsubBox.style.background = '#fffbeb';
+                unsubBox.style.borderColor = '#fde68a';
+                unsubBox.style.color = '#b45309';
+                unsubNames.style.color = '#ea580c';
+                
+                unsubBox.querySelector('span:first-child').innerText = '🚨 아직 제출하지 않은 인원:';
+                unsubNames.innerHTML = `${unsubmitted.join(', ')} <span style="font-size: 12px; color: #d97706;">(총 ${unsubmitted.length}명)</span>`;
+            } else {
+                // 전원 제출 완료 시 (초록색 박스)
+                unsubBox.style.display = 'block';
+                unsubBox.style.background = '#dcfce7';
+                unsubBox.style.borderColor = '#bbf7d0';
+                unsubBox.style.color = '#166534';
+                unsubNames.style.color = '#15803d';
+                
+                unsubBox.querySelector('span:first-child').innerText = '✅ 제출 현황:';
+                unsubNames.innerText = '전원 제출 완료! 🎉';
+            }
+
             const container = document.getElementById('resultTableContainer');
             const days = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
             let timeSlots = [];
@@ -674,8 +713,7 @@
                         cellHtml += `<div class="${isPersonal ? 'sch-badge-personal' : 'sch-badge-regular'}" data-tooltip="[참가] ${sch.participants.join(', ')}${sch.remark ? '\n[비고] '+sch.remark : ''}">📅 ${sch.stageName}</div>`;
                     });
                     if (people.length > 0) {
-                        // 결과표 말풍선 내용도 심플하게 처리하려면 이 부분을 수정해도 되지만, 현재는 사유 원본을 노출합니다.
-                        cellHtml += `<div class="matrix-cell" data-tooltip="${people.map(p => `[${p.name}]${p.reason}`).join('\n')}">${people.map(p => p.name).join(', ')}</div>`;
+                        cellHtml += `<div class="matrix-cell" data-tooltip="${people.map(p => `[${p.name}] ${p.reason}`).join('\n')}">${people.map(p => p.name).join(', ')}</div>`;
                     }
                     html += `<td style="vertical-align: top;">${cellHtml || '<span style="color:#cbd5e1;">-</span>'}</td>`;
                 }
@@ -746,7 +784,7 @@
                 for(let d=0; d<7; d++) {
                     let unavailablePeople = slotMap[timeStr][d];
                     if(unavailablePeople.length > 0) {
-                        html += `<td><div class="matrix-cell" data-tooltip="${unavailablePeople.map(p => `[${p.name}]${p.reason}`).join('\n')}">❌ 불가<br><span style="font-size:10px; font-weight:normal;">(${unavailablePeople.map(p => p.name).join(', ')})</span></div></td>`;
+                        html += `<td><div class="matrix-cell" data-tooltip="${unavailablePeople.map(p => `[${p.name}] ${p.reason}`).join('\n')}">❌ 불가<br><span style="font-size:10px; font-weight:normal;">(${unavailablePeople.map(p => p.name).join(', ')})</span></div></td>`;
                     } else {
                         html += `<td><div class="avail-cell-yes">✅ 가능</div></td>`;
                     }
