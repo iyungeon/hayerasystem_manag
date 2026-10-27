@@ -167,10 +167,9 @@
     <!-- 5. 전체 주간 일정 화면 -->
     <div id="schedule-view" class="container">
         <div class="schedule-controls">
-            <!-- 🌟 헤더 부분에 '일정 전체 초기화' 버튼 추가 -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
                 <h3 style="margin: 0; border: none; padding: 0;">새 연습 일정 등록</h3>
-                <button class="danger-btn" onclick="resetAllSchedules()" style="padding: 8px 14px; font-size: 13px;">⚠️ 일정 전체 초기화</button>
+                <button class="danger-btn" onclick="resetAllSchedules()" style="padding: 8px 14px; font-size: 13px;">일정 전체 초기화</button>
             </div>
 
             <div class="form-row" style="margin-bottom: 20px;">
@@ -600,7 +599,7 @@
             if(confirm('일정을 삭제하시겠습니까?')) db.collection("schedules").doc(id).delete();
         }
 
-        // 🌟 5번 탭 전체 일정 초기화 함수 🌟
+        // 5번 탭 전체 일정 초기화 함수
         function resetAllSchedules() {
             if (schedules.length === 0) {
                 alert('초기화할 일정이 없습니다.');
